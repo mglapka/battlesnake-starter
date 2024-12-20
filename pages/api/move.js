@@ -26,6 +26,8 @@ export default function handler(req, res) {
   const isCollision = (pos, body) =>
     body.some(segment => segment.x === pos.x && segment.y === pos.y);
 
+  const getDistance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
   // Generate next positions for all possible moves
   const nextPositions = {
     up: { x: myHead.x, y: myHead.y + 1 },
@@ -49,11 +51,9 @@ export default function handler(req, res) {
     return;
   }
 
-  // Food-seeking logic (seeking food if health is low)
+  // Food-seeking logic
   const food = board.food;
-  if (food.length > 0 && you.health < 90) {
-    const getDistance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-
+  if (food.length > 0) {
     const closestFood = food.reduce((closest, foodItem) => {
       const distanceToFood = getDistance(myHead, foodItem);
       const closestDistance = closest
@@ -63,7 +63,7 @@ export default function handler(req, res) {
     }, null);
 
     if (closestFood) {
-      // A* Pathfinding to find the best move towards food
+      // A* Pathfinding
       const aStar = (start, goal) => {
         const openSet = [start];
         const cameFrom = new Map();
@@ -129,8 +129,9 @@ export default function handler(req, res) {
       };
 
       const path = aStar(myHead, closestFood);
+
       if (path && path.length > 0) {
-        const nextMove = safeMoves.find((move) => {
+        const nextMove = Object.keys(nextPositions).find((move) => {
           const nextPos = nextPositions[move];
           return nextPos.x === path[0].x && nextPos.y === path[0].y;
         });
@@ -140,6 +141,20 @@ export default function handler(req, res) {
           res.status(200).json({ move: nextMove });
           return;
         }
+      }
+
+      // If A* fails, move closer to food manually
+      const foodDirection = Object.keys(nextPositions).find((move) => {
+        const nextPos = nextPositions[move];
+        const currentDistance = getDistance(myHead, closestFood);
+        const newDistance = getDistance(nextPos, closestFood);
+        return newDistance < currentDistance;
+      });
+
+      if (foodDirection && safeMoves.includes(foodDirection)) {
+        console.log(`MOVE ${gameState.turn}: Moving towards food with "${foodDirection}"`);
+        res.status(200).json({ move: foodDirection });
+        return;
       }
     }
   }
